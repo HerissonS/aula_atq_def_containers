@@ -14,46 +14,69 @@ permissions:
 
 jobs:
   scan_build:
-    name: Scan e Build da Imagem
+    name: Build da Imagem
     runs-on: ubuntu-latest
     steps:
       - name: Checar codigo
         uses: actions/checkout@v2
-      - name: Construir imagem
-        run: docker build -t pipeline-segura .
+      - name: Construir imagem local
+        run: docker build -t pipeline-segura:latest .
+      - name: Salvar imagem como arquivo TAR
+        run: docker save -o pipeline-segura.tar pipeline-segura:latest
+      - name: Upload temporario da imagem
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmp-pipeline-segura
+          path: pipeline-segura.tar
+          retention-days: 1
   execucao_dockle:
     name: Execucao do Dockle
     runs-on: ubuntu-latest
+    needs: scan_build
     steps:
-      - name: Executar dockle
+      - name: realizado download do arquivo .tar da imagem
+        uses: actions/download-artifact@v4
+        with:
+          name: tmp-pipeline-segura
+      - name: Carregar imagem no docker local
+        run: docker load -i pipeline-segura.tar
+      - name: executando o dockle
         uses: goodwithtech/dockle-action@main
         with:
-          image: pipeline-segura
+          image: pipeline-segura:latest
           format: 'list'
           exit-code: '1'
           exit-level: 'fatal'
   execucao_trivy:
     name: Execucao do Trivy
     runs-on: ubuntu-latest
+    needs: execucao_dockle
     steps:
+      - name: realizado download do arquivo .tar da image
+        uses: actions/download-artifact@v4
+        with:
+          name: tmp-pipeline-segura
+      - name: Carregar imagem no docker local
+        run: docker load -i pipeline-segura.tar
       - name: Scan com Trivy para analise CVE
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
-          image-ref: pipeline-segura
+          image-ref: 'pipeline-segura:latest'
           format: 'table'
           scanners: 'vuln,secret'
           exit-code: '1'
           severity: 'CRITICAL'
   assinatura_imagem:
-    name: Assinatura da Imagem
+    name: Publicacao e assinatura da Imagem
     runs-on: ubuntu-latest
+    needs: execucao_trivy
     steps:
+      - name: Checar codigo
+        uses: actions/checkout@v2
       - name: Assinatura imagem - instalacao cosign
         uses: sigstore/cosign-installer@v4.0.0
-      - name: Assinatura imagem - checar instalacao cosign
-        run: cosign version
-      - name: Assinatura imagem - Login Github container registry
+      - name: Login Github container registry
         uses: docker/login-action@v3.6.0
         with:
           registry: ghcr.io
@@ -67,14 +90,14 @@ jobs:
           tags: |
             type: sha,format=long
             type: raw,value=latest
-      - name: Build e push da imagem para o Github Container Registry
+      - name: Build e push oficial para o GHCR
         uses: docker/build-push-action@v6.18.0
         id: build_and_push
         with:
           context: .
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
-      - name: Assinatura e verificacao da imagem com githbu OIDC Token
+      - name: Assinatura e verificacao da imagem com github OIDC Token
         env:
           DIGEST: ${{ steps.build_and_push.outputs.digest }}
         run: |
@@ -85,8 +108,9 @@ jobs:
           --certificate-identity=https://github.com/${{ github.actor }}/aula_atq_def_containers/.github/workflows/pipeline_segura.yml@refs/heads/main \
           --certificate-oidc-issuer=https://token.actions.githubusercontent.com
   gerar_sbom:
-    name: Gerar SBOM e fazer upload como artefato
+    name: Gerar imagem publicada
     runs-on: ubuntu-latest
+    needs: assinatura_imagem
     steps:
       - name: Formatar nome do usuario para minusculo
         id: string_format
@@ -97,7 +121,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'image'
-          image-ref: 'ghcr.io/${{ steps.string_format.outputs.user_lower }}/pipeline-segura'
+          image-ref: 'ghcr.io/${{ steps.string_format.outputs.user_lower }}/pipeline-segura:latest'
           format: 'cyclonedx'
           output: 'resultado.sbom.json'
       - name: UPload relatorio trivy como artefato
