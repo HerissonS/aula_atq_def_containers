@@ -1,7 +1,7 @@
-FROM ubuntu:22.04
+FROM debian:12-slim
 
 RUN apt-get update && \
-    apt-get install -y mysql-server && \
-    rm -rf /var/lib/apt/lists
+    apt-get install -y default-mysql-server && \
+    rm -rf /var/lib/apt/lists/*
 
 CMD ["mysqld"]
