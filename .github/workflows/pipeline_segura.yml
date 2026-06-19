@@ -65,8 +65,9 @@ jobs:
       - name: Assinatura e verificacao da imagem com githbu OIDC Token
         env:
           DIGEST: ${{ steps.build_and_push.outputs.digest }}
-          IMAGE_BASE: ghcr.io/${{ github.actor }}/pipeline-segura
         run: |
+          USER_LOWER=$(echo "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="ghcr.io/${USER_LOWER}/pipeline-segura"
           cosign sign --yes "${IMAGE_BASE}@${DIGEST}"
           cosign verify "${IMAGE_BASE}@${DIGEST}" \
           --certificate-identity=https://github.com/${{ github.actor }}/aula_atq_def_containers/.github/workflows/pipeline_segura.yml@refs/heads/main \
