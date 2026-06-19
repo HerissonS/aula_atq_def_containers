@@ -1,5 +1,9 @@
 # SEGURANÇA EM CONTAINERS E KUBERNETS
 
+## Alunos
+* **Antonio Hérisson** — [LinkedIn](https://www.linkedin.com/in/h%C3%A9risson-silva-6110a316b/)
+* **Antonio Douglas** — [LinkedIn](https://www.linkedin.com/in/adb-albuquerque/)
+
 ## TRABALHO FINAL - Parte 1 — Pipeline Segura
 
 ## Parte 1 · Construção Segura
