@@ -1,7 +1,6 @@
-FROM debian:12-slim
-
-RUN apt-get update && \
-    apt-get install -y default-mysql-server && \
-    rm -rf /var/lib/apt/lists/*
-
+FROM alpine:3.20
+RUN apk add --no-cache mariadb mariadb-client
+RUN mysql_install_db
+USER mysql
+EXPOSE 3306
 CMD ["mysqld"]
