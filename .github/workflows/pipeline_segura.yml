@@ -1,0 +1,86 @@
+name: Trabalho Integrador Parte 1 - Pipeline Segura
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+  packages: write
+
+jobs:
+  scan_build:
+    name: Scan e Build da Imagem
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checar codigo
+        uses: actions/checkout@v2
+      - name: Construir imagem
+        run: docker build -t pipeline-segura .
+      - name: Executar dockle
+        uses: goodwithtech/dockle-action@main
+        with:
+          image: pipeline-segura
+          format: 'list'
+          exit-code: '1'
+          exit-level: 'fatal'
+      - name: Scan com Trivy para analise CVE
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: pipeline-segura
+          format: 'table'
+          scanners: 'vuln,secret'
+          exit-code: '1'
+          severity: 'CRITICAL'
+      - name: Assinatura imagem - instalacao cosign
+        uses: sigstore/cosign-installer@v4.0.0
+      - name: Assinatura imagem - checar instalacao cosign
+        run: cosign version
+      - name: Assinatura imagem - Login Github container registry
+        uses: docker/login-action@v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Informacoes tag da imagem
+        id: docker_meta
+        uses: docker/metadata-action@v5.8.0
+        with:
+          images: ghcr.io/${{ github.actor }}/pipeline-segura
+          tags: |
+            type: sha,format=long
+            type: raw,value=latest
+      - name: Build e push da imagem para o Github Container Registry
+        uses: docker/build-push-action@v6.18.0
+        id: build_and_push
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+      - name: Assinatura e verificacao da imagem com githbu OIDC Token
+        env:
+          DIGEST: ${{ steps.build_and_push.outputs.digest }}
+          IMAGE_BASE: ghcr.io/${{ github.actor }}/pipeline-segura
+        run: |
+          cosign sign --yes "${IMAGE_BASE}@${DIGEST}"
+          cosign verify "${IMAGE_BASE}@${DIGEST}" \
+          --certificate-identity=https://github.com/${{ github.actor }}/aula_atq_def_containers/.github/workflows/pipeline_segura.yml@refs/heads/main \
+          --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+      - name: Gerar SBOM com triy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.actor }}/pipeline-segura
+          scan-type: 'image'
+          format: 'cyclonedx'
+          output: 'resultado.sbom.json'
+      - name: UPload relatorio trivy como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado-sbom-trivy
+          path: resultado.sbom.json
+          retention-days: 20
