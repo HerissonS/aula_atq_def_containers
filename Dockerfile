@@ -1,6 +1,7 @@
-FROM alpine:3.20
-RUN apk add --no-cache mariadb mariadb-client
-RUN mysql_install_db
-USER mysql
-EXPOSE 3306
+FROM ubuntu:22.04
+
+RUN apt-get update && \
+    apt-get install -y mysql-server && \
+    rm -rf /var/lib/apt/lists
+
 CMD ["mysqld"]
