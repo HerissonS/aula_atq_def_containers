@@ -21,6 +21,10 @@ jobs:
         uses: actions/checkout@v2
       - name: Construir imagem
         run: docker build -t pipeline-segura .
+  execucao_dockle:
+    name: Execucao do Dockle
+    runs-on: ubuntu-latest
+    steps:
       - name: Executar dockle
         uses: goodwithtech/dockle-action@main
         with:
@@ -28,6 +32,10 @@ jobs:
           format: 'list'
           exit-code: '1'
           exit-level: 'fatal'
+  execucao_trivy:
+    name: Execucao do Trivy
+    runs-on: ubuntu-latest
+    steps:
       - name: Scan com Trivy para analise CVE
         uses: aquasecurity/trivy-action@master
         with:
@@ -37,6 +45,10 @@ jobs:
           scanners: 'vuln,secret'
           exit-code: '1'
           severity: 'CRITICAL'
+  assinatura_imagem:
+    name: Assinatura da Imagem
+    runs-on: ubuntu-latest
+    steps:
       - name: Assinatura imagem - instalacao cosign
         uses: sigstore/cosign-installer@v4.0.0
       - name: Assinatura imagem - checar instalacao cosign
@@ -72,6 +84,10 @@ jobs:
           cosign verify "${IMAGE_BASE}@${DIGEST}" \
           --certificate-identity=https://github.com/${{ github.actor }}/aula_atq_def_containers/.github/workflows/pipeline_segura.yml@refs/heads/main \
           --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+  gerar_sbom:
+    name: Gerar SBOM e fazer upload como artefato
+    runs-on: ubuntu-latest
+    steps:
       - name: Formatar nome do usuario para minusculo
         id: string_format
         run: |
