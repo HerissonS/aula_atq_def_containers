@@ -72,11 +72,16 @@ jobs:
           cosign verify "${IMAGE_BASE}@${DIGEST}" \
           --certificate-identity=https://github.com/${{ github.actor }}/aula_atq_def_containers/.github/workflows/pipeline_segura.yml@refs/heads/main \
           --certificate-oidc-issuer=https://token.actions.githubusercontent.com
-      - name: Gerar SBOM com triy
+      - name: Formatar nome do usuario para minusculo
+        id: string_format
+        run: |
+          USER_LOWER=$(echo "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')
+          echo "user_lower=${USER_LOWER}" >> $GITHUB_OUTPUT
+      - name: Gerar SBOM com trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.actor }}/pipeline-segura
           scan-type: 'image'
+          image-ref: 'ghcr.io/${{ steps.string_format.outputs.user_lower }}/pipeline-segura'
           format: 'cyclonedx'
           output: 'resultado.sbom.json'
       - name: UPload relatorio trivy como artefato
